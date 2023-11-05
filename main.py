@@ -1,5 +1,6 @@
 import spotipy
 import yt_dlp as youtube_dl
+import os
 from spotipy.oauth2 import SpotifyClientCredentials
 from youtube_search import YoutubeSearch
 
@@ -11,13 +12,24 @@ sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
 def get_tracks_from_playlist(playlist_url):
     playlist_id = playlist_url.split('/')[-1].split('?')[0]
-    results = sp.playlist(playlist_id)
-    tracks = results['tracks']['items']
+    
+    offset = 0
     song_details = []
-    for track in tracks:
-        song_name = track['track']['name']
-        artist_name = track['track']['artists'][0]['name']
-        song_details.append(f"{song_name} von {artist_name}")
+    
+    while True:
+        results = sp.playlist_items(playlist_id, offset=offset, limit=100)
+        tracks = results['items']
+        
+        if not tracks:
+            break
+
+        for track in tracks:
+            song_name = track['track']['name']
+            artist_name = track['track']['artists'][0]['name']
+            song_details.append(f"{song_name} von {artist_name}")
+
+        offset += 100
+
     return song_details
 
 def get_youtube_url(song_name, artist_name):
@@ -28,6 +40,18 @@ def get_youtube_url(song_name, artist_name):
     return None
 
 def download_as_mp3(youtube_url, output_path='downloads'):
+    ydl_opts = {}
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(youtube_url, download=False)
+        video_title = info_dict['title']
+
+    target_file_webm = os.path.join(output_path, f"{video_title}.webm")
+    target_file_m4a = os.path.join(output_path, f"{video_title}.m4a")
+
+    if os.path.exists(target_file_webm) or os.path.exists(target_file_m4a):
+        print(f"Datei für {video_title} bereits heruntergeladen. Überspringen...")
+        return
+
     options = {
         'format': 'bestaudio/best',
         'outtmpl': f'{output_path}/%(title)s.%(ext)s',
